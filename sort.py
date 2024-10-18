@@ -123,44 +123,43 @@ class KalmanBoxTracker(object):
     """
     return convert_x_to_bbox(self.kf.x)
 
-def associate_detections_to_trackers(detections,trackers,iou_threshold = 0.3):
-  """
-  Assigns detections to tracked object (both represented as bounding boxes)
+from scipy.optimize import linear_sum_assignment
+import numpy as np
 
-  Returns 3 lists of matches, unmatched_detections and unmatched_trackers
-  """
-  if(len(trackers)==0) or (len(detections)==0):
-    return np.empty((0,2),dtype=int), np.arange(len(detections)), np.empty((0,5),dtype=int)
-  iou_matrix = np.zeros((len(detections),len(trackers)),dtype=np.float32)
+def associate_detections_to_trackers(detections, trackers, iou_threshold=0.3):
+    """
+    Assigns detections to tracked objects (both represented as bounding boxes).
+    Returns 3 lists: matches, unmatched_detections, and unmatched_trackers.
+    """
+    if len(trackers) == 0 or len(detections) == 0:
+        return np.empty((0, 2), dtype=int), np.arange(len(detections)), np.arange(len(trackers))
 
-  for d,det in enumerate(detections):
-    for t,trk in enumerate(trackers):
-      iou_matrix[d,t] = iou(det,trk)
-  matched_indices = linear_sum_assignment(-iou_matrix)
+    # Compute the IOU matrix
+    iou_matrix = np.zeros((len(detections), len(trackers)), dtype=np.float32)
+    for d, det in enumerate(detections):
+        for t, trk in enumerate(trackers):
+            iou_matrix[d, t] = iou(det, trk)
 
-  unmatched_detections = []
-  for d,det in enumerate(detections):
-    if(d not in matched_indices[:,0]):
-      unmatched_detections.append(d)
-  unmatched_trackers = []
-  for t,trk in enumerate(trackers):
-    if(t not in matched_indices[:,1]):
-      unmatched_trackers.append(t)
+    # Use linear_sum_assignment to find matches
+    det_indices, trk_indices = linear_sum_assignment(-iou_matrix)
 
-  #filter out matched with low IOU
-  matches = []
-  for m in matched_indices:
-    if(iou_matrix[m[0],m[1]]<iou_threshold):
-      unmatched_detections.append(m[0])
-      unmatched_trackers.append(m[1])
-    else:
-      matches.append(m.reshape(1,2))
-  if(len(matches)==0):
-    matches = np.empty((0,2),dtype=int)
-  else:
-    matches = np.concatenate(matches,axis=0)
+    # Prepare lists for unmatched detections and trackers
+    unmatched_detections = [d for d in range(len(detections)) if d not in det_indices]
+    unmatched_trackers = [t for t in range(len(trackers)) if t not in trk_indices]
 
-  return matches, np.array(unmatched_detections), np.array(unmatched_trackers)
+    # Filter out matched pairs with low IOU
+    matches = []
+    for d, t in zip(det_indices, trk_indices):
+        if iou_matrix[d, t] < iou_threshold:
+            unmatched_detections.append(d)
+            unmatched_trackers.append(t)
+        else:
+            matches.append([d, t])
+
+    # Convert matches to NumPy array
+    matches = np.array(matches) if matches else np.empty((0, 2), dtype=int)
+
+    return matches, np.array(unmatched_detections), np.array(unmatched_trackers)
 
 class Sort(object):
   def __init__(self,max_age=1,min_hits=3):
