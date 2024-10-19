@@ -16,20 +16,17 @@ tracker = Sort()
 memory = {}
 counter = 0
 
+# Vehicle count by type
+vehicle_counts = {"car": 0, "motorbike": 0, "bus": 0, "truck": 0}
+
 # Construct the argument parser and parse the arguments
 ap = argparse.ArgumentParser()
-ap.add_argument("-i", "--input", required=True,
-                help="path to input video")
-ap.add_argument("-o", "--output", required=True,
-                help="path to output video")
-ap.add_argument("-y", "--yolo", required=True,
-                help="base path to YOLO directory")
-ap.add_argument("-c", "--confidence", type=float, default=0.5,
-                help="minimum probability to filter weak detections")
-ap.add_argument("-t", "--threshold", type=float, default=0.3,
-                help="threshold when applying non-maxima suppression")
-ap.add_argument("-s", "--speedup_factor", type=int, default=2,
-                help="factor by which to speed up the video processing")
+ap.add_argument("-i", "--input", required=True, help="path to input video")
+ap.add_argument("-o", "--output", required=True, help="path to output video")
+ap.add_argument("-y", "--yolo", required=True, help="base path to YOLO directory")
+ap.add_argument("-c", "--confidence", type=float, default=0.5, help="minimum probability to filter weak detections")
+ap.add_argument("-t", "--threshold", type=float, default=0.3, help="threshold when applying non-maxima suppression")
+ap.add_argument("-s", "--speedup_factor", type=int, default=2, help="factor by which to speed up the video processing")
 args = vars(ap.parse_args())
 
 # Load the COCO class labels our YOLO model was trained on
@@ -133,6 +130,9 @@ while True:
         if indexIDs[-1] not in counted_ids:
             counted_ids.add(indexIDs[-1])
             counter += 1
+            vehicle_type = LABELS[classIDs[indexIDs.index(track[4])]]
+            if vehicle_type in vehicle_counts:
+                vehicle_counts[vehicle_type] += 1
 
     if len(boxes) > 0:
         for i, box in enumerate(boxes):
@@ -141,27 +141,29 @@ while True:
             color = [int(c) for c in COLORS[indexIDs[i] % len(COLORS)]]
             vehicle_type = LABELS[classIDs[i]]
 
-            # Filter to display only vehicles of interest
-            if vehicle_type in ['car', 'motorbike', 'bus', 'truck']:
+            if vehicle_type in vehicle_counts:
                 cv2.rectangle(frame, (x, y), (x + w, y + h), color, 2)
                 cv2.putText(frame, vehicle_type, (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
 
-    cv2.putText(frame, str(counter), (100, 200), cv2.FONT_HERSHEY_DUPLEX, 5.0, (0, 255, 255), 10)
+    # Draw the counter and vehicle type counts
+    cv2.rectangle(frame, (10, 10), (250, 110), (0, 0, 0), -1)
+    cv2.putText(frame, f"Total: {counter}", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255, 255, 255), 2)
+    cv2.putText(frame, f"Cars: {vehicle_counts['car']}", (20, 65), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+    cv2.putText(frame, f"Bikes: {vehicle_counts['motorbike']}", (20, 85), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+
     cv2.imshow("Frame", frame)
 
-    # Initialize our video writer if not already initialized
     if writer is None:
         fourcc = cv2.VideoWriter_fourcc(*"MJPG")
-        writer = cv2.VideoWriter(args["output"], fourcc, 60, (W, H), True)  # Set to 60 FPS
+        writer = cv2.VideoWriter(args["output"], fourcc, 60, (W, H), True)
         print(f"[INFO] Writing video with resolution: {W}x{H}")
 
-    # Write the processed frame to the output video
     writer.write(frame)
 
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
-    frame_counter += 1  # Increment the frame counter
+    frame_counter += 1
 
 print("[INFO] cleaning up...")
 if writer is not None:
