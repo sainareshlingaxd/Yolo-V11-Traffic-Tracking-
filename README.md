@@ -1,4 +1,3 @@
-Welcome to the Yolo-V11-Traffic-Tracking- wiki!
 # YOLOv7 Traffic Tracking
 
 This project implements a real-time traffic tracking system using the YOLOv7 (You Only Look Once version 7) object detection model. The system can detect and track vehicles in video streams, providing valuable insights for traffic management.
